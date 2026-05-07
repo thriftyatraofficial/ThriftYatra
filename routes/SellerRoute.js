@@ -1,0 +1,20 @@
+// ========== THRIFT SELLER ROUTES ==========
+export const THRIFT_SELLER_DASHBOARD = '/seller/thrift/dashboard'
+export const THRIFT_SELLER_PRODUCTS = '/seller/thrift/products'
+export const THRIFT_SELLER_PRODUCT_ADD = '/seller/thrift/products/add'
+export const THRIFT_SELLER_PRODUCT_EDIT = (id) => id ? `/seller/thrift/products/edit/${id}` : ''
+export const THRIFT_SELLER_ORDERS = '/seller/thrift/orders'
+export const THRIFT_SELLER_ORDER_DETAILS = (orderId) => orderId ? `/seller/thrift/orders/${orderId}` : ''
+export const THRIFT_SELLER_EARNINGS = '/seller/thrift/earnings'
+export const THRIFT_SELLER_SETTINGS = '/seller/thrift/settings'
+
+// ========== BRAND SELLER ROUTES ==========
+export const BRAND_SELLER_DASHBOARD = '/seller/brand/dashboard'
+export const BRAND_SELLER_PRODUCTS = '/seller/brand/products'
+export const BRAND_SELLER_PRODUCT_ADD = '/seller/brand/products/add'
+export const BRAND_SELLER_PRODUCT_EDIT = (id) => id ? `/seller/brand/products/edit/${id}` : ''
+export const BRAND_SELLER_INVENTORY = '/seller/brand/inventory'
+export const BRAND_SELLER_ORDERS = '/seller/brand/orders'
+export const BRAND_SELLER_ORDER_DETAILS = (orderId) => orderId ? `/seller/brand/orders/${orderId}` : ''
+export const BRAND_SELLER_EARNINGS = '/seller/brand/earnings'
+export const BRAND_SELLER_SETTINGS = '/seller/brand/settings'
