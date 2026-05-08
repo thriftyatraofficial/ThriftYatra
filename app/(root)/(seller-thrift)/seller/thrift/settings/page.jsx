@@ -5,73 +5,31 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import axios from 'axios'
 import { showToast } from '@/lib/showToast'
 import { useSelector } from 'react-redux'
 import ButtonLoading from '@/components/Application/ButtonLoading'
-import { 
-    Store, Building2, MapPin, Landmark, Truck, 
-    RotateCcw, Instagram, Phone, Share2, MessageCircle, Eye, EyeOff, Upload
-} from 'lucide-react'
+import { Store, Building2, MapPin, Landmark, Truck, RotateCcw, Instagram, Phone, Share2, MessageCircle, Eye, EyeOff, Upload } from 'lucide-react'
 import Image from 'next/image'
 
-const defaultStoreProfile = {
-    storeName: '',
-    storeDescription: '',
-    storeLogo: null,
-    storeBanner: null,
-    phone: '',
-    whatsapp: '',
-    instagram: '',
-}
+const defaultStoreProfile = { storeName: '', storeDescription: '', storeLogo: null, storeBanner: null, phone: '', whatsapp: '', instagram: '' }
+const defaultBusinessDetails = { gstNumber: '', panNumber: '', businessType: 'individual', businessEmail: '' }
+const defaultPickupAddress = { fullName: '', phone: '', address: '', city: '', state: '', pincode: '', landmark: '' }
+const defaultShippingSettings = { handlingDays: 2, shippingCharge: 50, freeShippingAbove: 0 }
+const defaultReturnPolicy = { acceptReturns: false, returnWindow: 7, returnConditions: '' }
+const defaultStats = { totalProducts: 0, totalOrders: 0, totalSales: 0, rating: 0, joinedDate: null, sellerId: '', approvalStatus: '', isActive: true }
 
-const defaultBusinessDetails = {
-    gstNumber: '',
-    panNumber: '',
-    businessType: 'individual',
-    businessEmail: '',
-}
-
-const defaultPickupAddress = {
-    fullName: '',
-    phone: '',
-    address: '',
-    city: '',
-    state: '',
-    pincode: '',
-    landmark: '',
-}
-
-const defaultShippingSettings = {
-    handlingDays: 2,
-    shippingCharge: 50,
-    freeShippingAbove: 0,
-}
-
-const defaultReturnPolicy = {
-    acceptReturns: false,
-    returnWindow: 7,
-    returnConditions: '',
-}
-
-const defaultStats = {
-    totalProducts: 0,
-    totalOrders: 0,
-    totalSales: 0,
-    rating: 0,
-    joinedDate: null,
-    sellerId: '',
-    approvalStatus: '',
-    isActive: true,
+function dataURLtoBlob(dataurl) {
+    const arr = dataurl.split(',')
+    const mime = arr[0].match(/:(.*?);/)[1]
+    const bstr = atob(arr[1])
+    let n = bstr.length
+    const u8arr = new Uint8Array(n)
+    while (n--) u8arr[n] = bstr.charCodeAt(n)
+    return new Blob([u8arr], { type: mime })
 }
 
 const ThriftSettingsPage = () => {
@@ -79,7 +37,6 @@ const ThriftSettingsPage = () => {
     const [loading, setLoading] = useState(false)
     const [fetchLoading, setFetchLoading] = useState(true)
     const [activeSection, setActiveSection] = useState('store')
-    
     const [storeProfile, setStoreProfile] = useState(defaultStoreProfile)
     const [businessDetails, setBusinessDetails] = useState(defaultBusinessDetails)
     const [pickupAddress, setPickupAddress] = useState(defaultPickupAddress)
@@ -104,7 +61,7 @@ const ThriftSettingsPage = () => {
                 setReturnPolicy({ ...defaultReturnPolicy, ...settings.returnPolicy })
                 setStats({ ...defaultStats, ...settings.stats })
             }
-        } catch (error) { showToast('error', 'Failed to load settings') }
+        } catch { showToast('error', 'Failed to load settings') }
         finally { setFetchLoading(false) }
     }
 
@@ -121,30 +78,44 @@ const ThriftSettingsPage = () => {
         reader.readAsDataURL(file)
     }
 
+    // ✅ FIXED: Upload images to Cloudinary before sending to API
     const handleSaveStore = async () => {
-        try { setLoading(true); await axios.put('/api/seller/settings/store', storeProfile); showToast('success', 'Store profile updated') }
-        catch { showToast('error', 'Failed to update') } finally { setLoading(false) }
+        try {
+            setLoading(true)
+            let logoUrl = storeProfile.storeLogo
+            let bannerUrl = storeProfile.storeBanner
+
+            // Upload logo if it's base64
+            if (logoUrl && logoUrl.startsWith('data:image')) {
+                const formData = new FormData()
+                formData.append('file', dataURLtoBlob(logoUrl), 'logo.jpg')
+                const { data } = await axios.post('/api/media', formData)
+                if (data.success && data.data.length > 0) logoUrl = data.data[0].secure_url
+            }
+
+            // Upload banner if it's base64
+            if (bannerUrl && bannerUrl.startsWith('data:image')) {
+                const formData = new FormData()
+                formData.append('file', dataURLtoBlob(bannerUrl), 'banner.jpg')
+                const { data } = await axios.post('/api/media', formData)
+                if (data.success && data.data.length > 0) bannerUrl = data.data[0].secure_url
+            }
+
+            await axios.put('/api/seller/settings/store', {
+                ...storeProfile,
+                storeLogo: logoUrl,
+                storeBanner: bannerUrl
+            })
+            showToast('success', 'Store profile updated')
+            fetchSettings()
+        } catch { showToast('error', 'Failed to update. Try a smaller image.') }
+        finally { setLoading(false) }
     }
 
-    const handleSaveBusiness = async () => {
-        try { setLoading(true); await axios.put('/api/seller/settings/business', businessDetails); showToast('success', 'Business details updated') }
-        catch { showToast('error', 'Failed to update') } finally { setLoading(false) }
-    }
-
-    const handleSavePickup = async () => {
-        try { setLoading(true); await axios.put('/api/seller/settings/pickup', pickupAddress); showToast('success', 'Pickup address updated') }
-        catch { showToast('error', 'Failed to update') } finally { setLoading(false) }
-    }
-
-    const handleSaveShipping = async () => {
-        try { setLoading(true); await axios.put('/api/seller/settings/shipping', shippingSettings); showToast('success', 'Shipping settings updated') }
-        catch { showToast('error', 'Failed to update') } finally { setLoading(false) }
-    }
-
-    const handleSaveReturn = async () => {
-        try { setLoading(true); await axios.put('/api/seller/settings/return', returnPolicy); showToast('success', 'Return policy updated') }
-        catch { showToast('error', 'Failed to update') } finally { setLoading(false) }
-    }
+    const handleSaveBusiness = async () => { try { setLoading(true); await axios.put('/api/seller/settings/business', businessDetails); showToast('success', 'Business details updated') } catch { showToast('error', 'Failed to update') } finally { setLoading(false) } }
+    const handleSavePickup = async () => { try { setLoading(true); await axios.put('/api/seller/settings/pickup', pickupAddress); showToast('success', 'Pickup address updated') } catch { showToast('error', 'Failed to update') } finally { setLoading(false) } }
+    const handleSaveShipping = async () => { try { setLoading(true); await axios.put('/api/seller/settings/shipping', shippingSettings); showToast('success', 'Shipping settings updated') } catch { showToast('error', 'Failed to update') } finally { setLoading(false) } }
+    const handleSaveReturn = async () => { try { setLoading(true); await axios.put('/api/seller/settings/return', returnPolicy); showToast('success', 'Return policy updated') } catch { showToast('error', 'Failed to update') } finally { setLoading(false) } }
 
     const sections = [
         { id: 'store', label: 'Store Profile', icon: Store },
@@ -184,18 +155,17 @@ const ThriftSettingsPage = () => {
                 ))}
             </div>
 
-            {/* ✅ STORE PROFILE WITH LOGO + COVER */}
+            {/* STORE PROFILE */}
             {activeSection === 'store' && (
                 <Card>
                     <CardHeader><h2 className='text-lg font-semibold'>Store Profile</h2><p className='text-sm text-gray-500'>This appears on your product pages</p></CardHeader>
                     <CardContent className='space-y-6'>
-                        {/* Store Logo */}
                         <div>
                             <Label>Store Logo</Label>
                             <div className='mt-2'>
                                 {storeProfile.storeLogo ? (
                                     <div>
-                                        <div className='relative w-24 h-24'><Image src={storeProfile.storeLogo} fill alt="Logo" className='rounded-full object-cover border' /></div>
+                                        <div className='relative w-24 h-24'><Image src={storeProfile.storeLogo} fill alt="Logo" className='rounded-full object-cover border' unoptimized={storeProfile.storeLogo.startsWith('data:')} /></div>
                                         <Button variant="outline" size="sm" className='mt-2' onClick={() => document.getElementById('thriftLogoUpload').click()}>Change Logo</Button>
                                     </div>
                                 ) : (
@@ -204,14 +174,12 @@ const ThriftSettingsPage = () => {
                                 <input id="thriftLogoUpload" type="file" accept="image/*" className="hidden" onChange={(e) => handleImageUpload(e, 'logo')} />
                             </div>
                         </div>
-
-                        {/* Store Banner */}
                         <div>
                             <Label>Store Banner</Label>
                             <div className='mt-2'>
                                 {storeProfile.storeBanner ? (
                                     <div>
-                                        <div className='relative w-full h-32'><Image src={storeProfile.storeBanner} fill alt="Banner" className='rounded-lg object-cover border' /></div>
+                                        <div className='relative w-full h-32'><Image src={storeProfile.storeBanner} fill alt="Banner" className='rounded-lg object-cover border' unoptimized={storeProfile.storeBanner.startsWith('data:')} /></div>
                                         <Button variant="outline" size="sm" className='mt-2' onClick={() => document.getElementById('thriftBannerUpload').click()}>Change Banner</Button>
                                     </div>
                                 ) : (
@@ -220,7 +188,6 @@ const ThriftSettingsPage = () => {
                                 <input id="thriftBannerUpload" type="file" accept="image/*" className="hidden" onChange={(e) => handleImageUpload(e, 'banner')} />
                             </div>
                         </div>
-
                         <div><Label>Store Name *</Label><Input value={storeProfile.storeName} onChange={(e) => setStoreProfile({...storeProfile, storeName: e.target.value})} placeholder="My Thrift Store" /></div>
                         <div><Label>Store Description</Label><Textarea value={storeProfile.storeDescription} onChange={(e) => setStoreProfile({...storeProfile, storeDescription: e.target.value})} placeholder="Tell customers about your store..." rows={4} /></div>
                         <ButtonLoading loading={loading} onClick={handleSaveStore} text="Save Store Profile" />
@@ -251,10 +218,7 @@ const ThriftSettingsPage = () => {
                     <CardHeader><h2 className='text-lg font-semibold'>Business Details</h2></CardHeader>
                     <CardContent className='space-y-4'>
                         <div className='bg-yellow-50 p-3 rounded-lg'><p className='text-xs'><EyeOff className="h-3 w-3 inline" /> Private</p></div>
-                        <div className='grid grid-cols-2 gap-4'>
-                            <div><Label>GST</Label><Input value={businessDetails.gstNumber} onChange={(e) => setBusinessDetails({...businessDetails, gstNumber: e.target.value})} /></div>
-                            <div><Label>PAN</Label><Input value={businessDetails.panNumber} onChange={(e) => setBusinessDetails({...businessDetails, panNumber: e.target.value})} /></div>
-                        </div>
+                        <div className='grid grid-cols-2 gap-4'><div><Label>GST</Label><Input value={businessDetails.gstNumber} onChange={(e) => setBusinessDetails({...businessDetails, gstNumber: e.target.value})} /></div><div><Label>PAN</Label><Input value={businessDetails.panNumber} onChange={(e) => setBusinessDetails({...businessDetails, panNumber: e.target.value})} /></div></div>
                         <div><Label>Business Type</Label><Select value={businessDetails.businessType} onValueChange={(v) => setBusinessDetails({...businessDetails, businessType: v})}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="individual">Individual</SelectItem><SelectItem value="proprietorship">Proprietorship</SelectItem><SelectItem value="partnership">Partnership</SelectItem><SelectItem value="company">Company</SelectItem></SelectContent></Select></div>
                         <div><Label>Business Email</Label><Input type="email" value={businessDetails.businessEmail} onChange={(e) => setBusinessDetails({...businessDetails, businessEmail: e.target.value})} /></div>
                         <ButtonLoading loading={loading} onClick={handleSaveBusiness} text="Save Business Details" />
@@ -262,7 +226,7 @@ const ThriftSettingsPage = () => {
                 </Card>
             )}
 
-            {/* Other sections remain same - pickup, bank, shipping, returns */}
+            {/* PICKUP ADDRESS */}
             {activeSection === 'pickup' && (
                 <Card><CardHeader><h2 className='text-lg font-semibold'>Pickup Address</h2></CardHeader>
                     <CardContent className='space-y-4'>
@@ -275,6 +239,7 @@ const ThriftSettingsPage = () => {
                 </Card>
             )}
 
+            {/* BANK */}
             {activeSection === 'bank' && (
                 <Card><CardHeader><h2 className='text-lg font-semibold'>Bank Account</h2></CardHeader>
                     <CardContent>{bankDetails ? (
@@ -283,6 +248,7 @@ const ThriftSettingsPage = () => {
                 </Card>
             )}
 
+            {/* SHIPPING */}
             {activeSection === 'shipping' && (
                 <Card><CardHeader><h2 className='text-lg font-semibold'>Shipping Settings</h2></CardHeader>
                     <CardContent className='space-y-4'>
@@ -294,6 +260,7 @@ const ThriftSettingsPage = () => {
                 </Card>
             )}
 
+            {/* RETURNS */}
             {activeSection === 'returns' && (
                 <Card><CardHeader><h2 className='text-lg font-semibold'>Return Policy</h2></CardHeader>
                     <CardContent className='space-y-4'>
