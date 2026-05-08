@@ -170,7 +170,7 @@ const MobileImageUploader = ({ value = [], onChange, maxFiles = 5 }) => {
                 multiple
                 onChange={handleFileSelect}
                 className='hidden'
-                capture='environment'
+                
             />
 
             <p className='text-xs text-gray-500'>

@@ -45,7 +45,10 @@ const Home = () => {
                 const slides = []
                 for (let i = 1; i <= 4; i++) {
                     const slide = grouped?.[`carousel_${i}`]?.[0]
-                    if (slide?.imageUrl || slide?.base64Image) slides.push(slide)
+                    // ✅ Accept images AND videos
+                    if (slide?.imageUrl || slide?.base64Image || slide?.videoUrl) {
+                        slides.push(slide)
+                    }
                 }
                 setCarouselSlides(slides)
                 setPromiseBanners(grouped?.['home_banner_right'] || [])
@@ -58,12 +61,34 @@ const Home = () => {
 
     return (
         <div className="bg-white">
-            {/* Full-Width Carousel - No Arrows, Only Dots */}
+            {/* Full-Width Carousel - Supports Images AND Videos */}
             {carouselSlides.length > 0 ? (
                 <section className="relative w-full h-[50vh] md:h-[75vh] overflow-hidden">
                     {carouselSlides.map((slide, index) => (
                         <div key={slide._id} className={`absolute inset-0 transition-opacity duration-700 ${index === currentSlide ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}>
-                            <Image src={getImageUrl(slide.imageUrl || slide.base64Image)} alt={slide.title || 'Banner'} fill className="object-cover" unoptimized priority={index === 0} />
+                            {/* ✅ Video support for main carousel */}
+                            {slide.mediaType === 'video' && slide.videoUrl ? (
+                                <video
+                                    src={slide.videoUrl}
+                                    poster={getImageUrl(slide.posterUrl || slide.base64Poster)}
+                                    autoPlay={slide.videoSettings?.autoplay !== false}
+                                    loop={slide.videoSettings?.loop !== false}
+                                    muted={slide.videoSettings?.muted !== false}
+                                    controls={slide.videoSettings?.controls || false}
+                                    playsInline
+                                    className="absolute inset-0 w-full h-full object-cover"
+                                />
+                            ) : (
+                                <Image 
+                                    src={getImageUrl(slide.imageUrl || slide.base64Image)} 
+                                    alt={slide.title || 'Banner'} 
+                                    fill 
+                                    className="object-cover" 
+                                    unoptimized 
+                                    priority={index === 0} 
+                                />
+                            )}
+                            {/* Overlay - same for both images and videos */}
                             <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
                                 <div className="text-center text-white px-4 max-w-xl">
                                     {slide.title && <h1 className="text-4xl md:text-6xl font-bold mb-2 uppercase tracking-wider">{slide.title}</h1>}
@@ -124,7 +149,7 @@ const Home = () => {
                 </div>
             </section>
 
-            {/* Our Promise Banners - No Arrows */}
+            {/* Our Promise Banners - Supports Images AND Videos */}
             {promiseBanners.length > 0 && (
                 <section className='lg:px-32 px-4 pt-8 pb-16'>
                     <h2 className='text-2xl font-bold uppercase text-center mb-6 tracking-tight'>Our Promise</h2>
