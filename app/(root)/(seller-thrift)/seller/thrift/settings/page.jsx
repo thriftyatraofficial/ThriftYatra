@@ -15,6 +15,9 @@ import ButtonLoading from '@/components/Application/ButtonLoading'
 import { Store, Building2, MapPin, Landmark, Truck, RotateCcw, Instagram, Phone, Share2, MessageCircle, Eye, EyeOff, Upload } from 'lucide-react'
 import Image from 'next/image'
 
+const MAX_LOGO_SIZE = 2 * 1024 * 1024   // 2MB for logos
+const MAX_BANNER_SIZE = 5 * 1024 * 1024  // 5MB for banners
+
 const defaultStoreProfile = { storeName: '', storeDescription: '', storeLogo: null, storeBanner: null, phone: '', whatsapp: '', instagram: '' }
 const defaultBusinessDetails = { gstNumber: '', panNumber: '', businessType: 'individual', businessEmail: '' }
 const defaultPickupAddress = { fullName: '', phone: '', address: '', city: '', state: '', pincode: '', landmark: '' }
@@ -30,6 +33,12 @@ function dataURLtoBlob(dataurl) {
     const u8arr = new Uint8Array(n)
     while (n--) u8arr[n] = bstr.charCodeAt(n)
     return new Blob([u8arr], { type: mime })
+}
+
+function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + ' B'
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
 }
 
 const ThriftSettingsPage = () => {
@@ -68,7 +77,22 @@ const ThriftSettingsPage = () => {
     const handleImageUpload = (e, type) => {
         const file = e.target.files[0]
         if (!file) return
-        if (!file.type.startsWith('image/')) { showToast('error', 'Select an image file'); return }
+        if (!file.type.startsWith('image/')) { 
+            showToast('error', 'Please select a valid image file (JPG, PNG, WebP)')
+            return 
+        }
+        
+        // Check size limits
+        const maxSize = type === 'logo' ? MAX_LOGO_SIZE : MAX_BANNER_SIZE
+        const typeLabel = type === 'logo' ? 'logo' : 'banner'
+        
+        if (file.size > maxSize) {
+            const actualSize = formatFileSize(file.size)
+            const maxSizeLabel = formatFileSize(maxSize)
+            showToast('error', `Image too large! Your ${typeLabel} is ${actualSize}. Maximum allowed is ${maxSizeLabel}. Please resize the image.`)
+            return
+        }
+        
         const reader = new FileReader()
         reader.onload = (event) => {
             const base64 = event.target.result
@@ -78,27 +102,26 @@ const ThriftSettingsPage = () => {
         reader.readAsDataURL(file)
     }
 
-    // ✅ FIXED: Upload images to Cloudinary before sending to API
     const handleSaveStore = async () => {
         try {
             setLoading(true)
             let logoUrl = storeProfile.storeLogo
             let bannerUrl = storeProfile.storeBanner
 
-            // Upload logo if it's base64
             if (logoUrl && logoUrl.startsWith('data:image')) {
                 const formData = new FormData()
                 formData.append('file', dataURLtoBlob(logoUrl), 'logo.jpg')
                 const { data } = await axios.post('/api/media', formData)
                 if (data.success && data.data.length > 0) logoUrl = data.data[0].secure_url
+                else { showToast('error', 'Failed to upload logo'); return }
             }
 
-            // Upload banner if it's base64
             if (bannerUrl && bannerUrl.startsWith('data:image')) {
                 const formData = new FormData()
                 formData.append('file', dataURLtoBlob(bannerUrl), 'banner.jpg')
                 const { data } = await axios.post('/api/media', formData)
                 if (data.success && data.data.length > 0) bannerUrl = data.data[0].secure_url
+                else { showToast('error', 'Failed to upload banner'); return }
             }
 
             await axios.put('/api/seller/settings/store', {
@@ -108,8 +131,11 @@ const ThriftSettingsPage = () => {
             })
             showToast('success', 'Store profile updated')
             fetchSettings()
-        } catch { showToast('error', 'Failed to update. Try a smaller image.') }
-        finally { setLoading(false) }
+        } catch { 
+            showToast('error', 'Failed to update. Please try a smaller image (under 2MB for logo, 5MB for banner).') 
+        } finally { 
+            setLoading(false) 
+        }
     }
 
     const handleSaveBusiness = async () => { try { setLoading(true); await axios.put('/api/seller/settings/business', businessDetails); showToast('success', 'Business details updated') } catch { showToast('error', 'Failed to update') } finally { setLoading(false) } }
@@ -161,7 +187,7 @@ const ThriftSettingsPage = () => {
                     <CardHeader><h2 className='text-lg font-semibold'>Store Profile</h2><p className='text-sm text-gray-500'>This appears on your product pages</p></CardHeader>
                     <CardContent className='space-y-6'>
                         <div>
-                            <Label>Store Logo</Label>
+                            <Label>Store Logo <span className='text-xs text-gray-400'>(Max 2MB, Recommended: 500x500px)</span></Label>
                             <div className='mt-2'>
                                 {storeProfile.storeLogo ? (
                                     <div>
@@ -175,7 +201,7 @@ const ThriftSettingsPage = () => {
                             </div>
                         </div>
                         <div>
-                            <Label>Store Banner</Label>
+                            <Label>Store Banner <span className='text-xs text-gray-400'>(Max 5MB, Recommended: 1200x400px)</span></Label>
                             <div className='mt-2'>
                                 {storeProfile.storeBanner ? (
                                     <div>
@@ -226,7 +252,7 @@ const ThriftSettingsPage = () => {
                 </Card>
             )}
 
-            {/* PICKUP ADDRESS */}
+            {/* PICKUP, BANK, SHIPPING, RETURNS - Same as before */}
             {activeSection === 'pickup' && (
                 <Card><CardHeader><h2 className='text-lg font-semibold'>Pickup Address</h2></CardHeader>
                     <CardContent className='space-y-4'>
@@ -238,39 +264,19 @@ const ThriftSettingsPage = () => {
                     </CardContent>
                 </Card>
             )}
-
-            {/* BANK */}
             {activeSection === 'bank' && (
                 <Card><CardHeader><h2 className='text-lg font-semibold'>Bank Account</h2></CardHeader>
-                    <CardContent>{bankDetails ? (
-                        <div className='bg-gray-50 p-4 rounded-lg'><p className='font-medium'>{bankDetails.accountHolderName}</p><p className='text-sm'>{bankDetails.bankName}</p><p className='text-sm'>A/C: {bankDetails.accountNumber}</p><p className='text-sm'>IFSC: {bankDetails.ifscCode}</p></div>
-                    ) : (<div className='text-center py-6'><Landmark className='h-12 w-12 mx-auto text-gray-300 mb-3' /><p className='text-gray-500'>No bank account added</p></div>)}</CardContent>
+                    <CardContent>{bankDetails ? (<div className='bg-gray-50 p-4 rounded-lg'><p className='font-medium'>{bankDetails.accountHolderName}</p><p className='text-sm'>{bankDetails.bankName}</p><p className='text-sm'>A/C: {bankDetails.accountNumber}</p><p className='text-sm'>IFSC: {bankDetails.ifscCode}</p></div>) : (<div className='text-center py-6'><Landmark className='h-12 w-12 mx-auto text-gray-300 mb-3' /><p className='text-gray-500'>No bank account added</p></div>)}</CardContent>
                 </Card>
             )}
-
-            {/* SHIPPING */}
             {activeSection === 'shipping' && (
                 <Card><CardHeader><h2 className='text-lg font-semibold'>Shipping Settings</h2></CardHeader>
-                    <CardContent className='space-y-4'>
-                        <div><Label>Handling Time (Days)</Label><Input type="number" value={shippingSettings.handlingDays} onChange={(e) => setShippingSettings({...shippingSettings, handlingDays: parseInt(e.target.value) || 1})} /></div>
-                        <div><Label>Shipping Charge (₹)</Label><Input type="number" value={shippingSettings.shippingCharge} onChange={(e) => setShippingSettings({...shippingSettings, shippingCharge: parseInt(e.target.value) || 0})} /></div>
-                        <div><Label>Free Shipping Above (₹)</Label><Input type="number" value={shippingSettings.freeShippingAbove} onChange={(e) => setShippingSettings({...shippingSettings, freeShippingAbove: parseInt(e.target.value) || 0})} /></div>
-                        <ButtonLoading loading={loading} onClick={handleSaveShipping} text="Save Shipping" />
-                    </CardContent>
+                    <CardContent className='space-y-4'><div><Label>Handling Time (Days)</Label><Input type="number" value={shippingSettings.handlingDays} onChange={(e) => setShippingSettings({...shippingSettings, handlingDays: parseInt(e.target.value) || 1})} /></div><div><Label>Shipping Charge (₹)</Label><Input type="number" value={shippingSettings.shippingCharge} onChange={(e) => setShippingSettings({...shippingSettings, shippingCharge: parseInt(e.target.value) || 0})} /></div><div><Label>Free Shipping Above (₹)</Label><Input type="number" value={shippingSettings.freeShippingAbove} onChange={(e) => setShippingSettings({...shippingSettings, freeShippingAbove: parseInt(e.target.value) || 0})} /></div><ButtonLoading loading={loading} onClick={handleSaveShipping} text="Save Shipping" /></CardContent>
                 </Card>
             )}
-
-            {/* RETURNS */}
             {activeSection === 'returns' && (
                 <Card><CardHeader><h2 className='text-lg font-semibold'>Return Policy</h2></CardHeader>
-                    <CardContent className='space-y-4'>
-                        <div className='flex items-center justify-between'><Label>Accept Returns</Label><Switch checked={returnPolicy.acceptReturns} onCheckedChange={(v) => setReturnPolicy({...returnPolicy, acceptReturns: v})} /></div>
-                        {returnPolicy.acceptReturns && (
-                            <><div><Label>Return Window (Days)</Label><Input type="number" value={returnPolicy.returnWindow} onChange={(e) => setReturnPolicy({...returnPolicy, returnWindow: parseInt(e.target.value) || 7})} /></div>
-                            <div><Label>Return Conditions</Label><Textarea value={returnPolicy.returnConditions} onChange={(e) => setReturnPolicy({...returnPolicy, returnConditions: e.target.value})} rows={3} /></div></>
-                        )}
-                        <ButtonLoading loading={loading} onClick={handleSaveReturn} text="Save Return Policy" />
-                    </CardContent>
+                    <CardContent className='space-y-4'><div className='flex items-center justify-between'><Label>Accept Returns</Label><Switch checked={returnPolicy.acceptReturns} onCheckedChange={(v) => setReturnPolicy({...returnPolicy, acceptReturns: v})} /></div>{returnPolicy.acceptReturns && (<><div><Label>Return Window (Days)</Label><Input type="number" value={returnPolicy.returnWindow} onChange={(e) => setReturnPolicy({...returnPolicy, returnWindow: parseInt(e.target.value) || 7})} /></div><div><Label>Return Conditions</Label><Textarea value={returnPolicy.returnConditions} onChange={(e) => setReturnPolicy({...returnPolicy, returnConditions: e.target.value})} rows={3} /></div></>)}<ButtonLoading loading={loading} onClick={handleSaveReturn} text="Save Return Policy" /></CardContent>
                 </Card>
             )}
         </div>
